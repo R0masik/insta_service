@@ -14,10 +14,11 @@ from config import Config
 
 
 class InstaService:
-    AUTHORIZE_URL = 'oauth/authorize'
-    ACCESS_TOKEN_URL = 'oauth/access_token'
+    AUTHORIZE = 'oauth/authorize'
+    ACCESS_TOKEN = 'oauth/access_token'
+    FOLLOWERS = lambda slf, user_id: f'v1/users/{user_id}/follows'
 
-    REDIRECT_URL = 'http://localhost:3000'
+    REDIRECT = 'http://localhost:3000'
 
     def __init__(self):
         self.options = webdriver.ChromeOptions()
@@ -25,14 +26,16 @@ class InstaService:
         self.browser = webdriver.Chrome(Config.DRIVER_PATH, options=self.options)
         self.auth_code = None
         self.access_token = None
+        self.user_id = None
 
     def login(self):
         params = {
             'client_id': Config.CLIENT_ID,
-            'redirect_uri': self.REDIRECT_URL,
-            'response_type': 'code'
+            'redirect_uri': self.REDIRECT,
+            'response_type': 'code',
+            'scope': 'follower_list'
         }
-        auth_url = Config.API_HOST + self.AUTHORIZE_URL + '?' + urlparse.urlencode(params)
+        auth_url = Config.API_HOST + self.AUTHORIZE + '?' + urlparse.urlencode(params)
         self.browser.get(auth_url)
         self.wait_loading(By.NAME, 'username')
 
@@ -47,36 +50,33 @@ class InstaService:
 
         parsed_params = urlparse.urlparse(self.browser.current_url).query
         self.auth_code = urlparse.parse_qs(parsed_params)['code'][0]
-        self.access_token = self.get_access_token(self.auth_code)
+
+        access_token_resp = self.get_access_token(self.auth_code)
+        self.access_token = access_token_resp['access_token']
+        self.user_id = access_token_resp['user']['id']
 
     def get_access_token(self, code):
         data = {
             'client_id': Config.CLIENT_ID,
             'client_secret': Config.CLIENT_SECRET,
             'grant_type': 'authorization_code',
-            'redirect_uri': self.REDIRECT_URL,
+            'redirect_uri': self.REDIRECT,
             'code': code
         }
-        token_url = Config.API_HOST + self.ACCESS_TOKEN_URL
+        token_url = Config.API_HOST + self.ACCESS_TOKEN
         req = requests.post(token_url, data=data)
-        return req.json()['access_token']
+        print(req.json())
+        return req.json()
 
     def check_followers(self):
-        pass
-        # self.browser.get(Config.HOST + self.PROFILE_PAGE_URL + self.PAGE_INFO_URL)
-        # req = requests.get(Config.HOST + self.PROFILE_PAGE_URL + self.PAGE_INFO_URL)
-        # print(req.text)
-        # from pprint import pprint
-        # pprint(req.text)
+        followers_url = Config.API_HOST + self.FOLLOWERS(self.user_id)
+        params = {'access_token': self.access_token}
 
-        # self.wait_loading(By.XPATH, '//a[@href="/rm_v/followers/"]')
+        print(followers_url)
+        followers_resp = requests.get(followers_url, params=params)
 
-        # profile_button = self.browser.find_element_by_xpath('//a[@href="/rm_v/followers/"]')
-        # profile_button.click()
-        # self.wait_loading(By.XPATH, '//div[@role="dialog"]')
-        #
-        # followers_form = self.browser.find_element_by_xpath('//div[@role="dialog"]')
-        # print(followers_form)
+        from pprint import pprint
+        pprint(followers_resp.json())
 
     def wait_loading(self, by_attr, value):
         WebDriverWait(self.browser, 5).until(
@@ -91,4 +91,4 @@ class InstaService:
 if __name__ == '__main__':
     inst = InstaService()
     inst.login()
-    # inst.check_followers()
+    inst.check_followers()
