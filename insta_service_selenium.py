@@ -2,9 +2,9 @@
 
 import json
 import requests
-from time import sleep
 import urllib.parse as urlparse
 
+import pyotp
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -16,7 +16,7 @@ from config import Config
 class InstaService:
     AUTHORIZE = 'oauth/authorize'
     ACCESS_TOKEN = 'oauth/access_token'
-    FOLLOWERS = lambda slf, user_id: f'v1/users/{user_id}/follows'
+    FOLLOWERS = lambda self, user_id: f'v1/users/{user_id}/follows'
 
     REDIRECT = 'http://localhost:3000'
 
@@ -33,7 +33,7 @@ class InstaService:
             'client_id': Config.CLIENT_ID,
             'redirect_uri': self.REDIRECT,
             'response_type': 'code',
-            'scope': 'follower_list'
+            'scope': 'user_profile,user_media'
         }
         auth_url = Config.API_HOST + self.AUTHORIZE + '?' + urlparse.urlencode(params)
         self.browser.get(auth_url)
@@ -46,6 +46,14 @@ class InstaService:
         passwd_field.send_keys(Config.PASSWORD)
         login_button = self.browser.find_elements_by_tag_name('button')[1]
         login_button.click()
+        self.wait_loading(By.ID, 'verificationCodeDescription')
+
+        # two-factor authentication
+        code_field = self.browser.find_element_by_name('verificationCode')
+        code = self.otp_code()
+        code_field.send_keys(code)
+        confirm_button = self.browser.find_elements_by_tag_name('button')[0]
+        confirm_button.click()
         self.wait_loading(By.CLASS_NAME, 'auth_done')
 
         parsed_params = urlparse.urlparse(self.browser.current_url).query
@@ -54,6 +62,9 @@ class InstaService:
         access_token_resp = self.get_access_token(self.auth_code)
         self.access_token = access_token_resp['access_token']
         self.user_id = access_token_resp['user']['id']
+
+    def otp_code(self):
+        return pyotp.TOTP(Config.AUTH_KEY).now()
 
     def get_access_token(self, code):
         data = {
@@ -70,7 +81,8 @@ class InstaService:
 
     def check_followers(self):
         followers_url = Config.API_HOST + self.FOLLOWERS(self.user_id)
-        params = {'access_token': self.access_token}
+        params = {'access_token': self.access_token,
+                  }
 
         print(followers_url)
         followers_resp = requests.get(followers_url, params=params)

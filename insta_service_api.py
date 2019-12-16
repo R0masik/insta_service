@@ -14,12 +14,15 @@ class InstaService:
     PROFILE_PAGE_URL = f'/{Config.USERNAME}/'
     REDIRECT_URL = 'http://localhost:3000'
 
+    FOLLOWERS = lambda slf, user_id: f'v1/users/{user_id}/follows'
+
     def __init__(self):
         auth_url = Config.API_HOST + self.AUTHORIZE_URL
         params = {
             'client_id': Config.CLIENT_ID,
-            'redirect_uri': self.REDIRECT_URL,
-            'response_type': 'code'
+            'redirect_uri': self.REDIRECT,
+            'response_type': 'code',
+            'scope': 'follower_list'
         }
         req = requests.get(auth_url, params=params)
         print(req.url)
@@ -62,5 +65,5 @@ class InstaService:
 
 if __name__ == '__main__':
     inst = InstaService()
-    # inst.login()
-    # inst.check_followers()
+    inst.login()
+    inst.check_followers()
